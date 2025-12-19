@@ -1,0 +1,181 @@
+---
+# Playbook principal - définit l'état désiré de l'infrastructure
+# Ce playbook orchestre tous les autres playbooks
+
+- name: Configuration complète de l'infrastructure
+  hosts: production
+  become: yes
+  gather_facts: yes
+  
+  pre_tasks:
+    - name: Mise à jour du cache des paquets
+      package:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: Mise à jour du cache des paquets (RedHat)
+      yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+
+  tasks:
+    - name: Installer les paquets essentiels
+      package:
+        name:
+          - curl
+          - wget
+          - git
+          - vim
+          - htop
+          - net-tools
+        state: present
+    
+    - name: Configurer le fuseau horaire
+      timezone:
+        name: "{{ timezone | default('Europe/Paris') }}"
+
+  post_tasks:
+    - name: Afficher un message de fin
+      debug:
+        msg: "Configuration de base terminée avec succès"
+
+- name: Configuration des serveurs web
+  hosts: webservers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    web_server: "{{ web_server_type | default('apache') }}"
+    http_port: 80
+    https_port: 443
+    web_root: "/var/www/html"
+    web_user: "www-data"
+    web_group: "www-data"
+  
+  tasks:
+    - name: Installer Apache (Debian/Ubuntu)
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian" and web_server == "apache"
+    
+    - name: Créer le répertoire pour les sites web
+      file:
+        path: "{{ web_root }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ web_user }}"
+        group: "{{ web_group }}"
+    
+    - name: Créer une page d'accueil par défaut
+      copy:
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Serveur Web Configuré avec Ansible</title>
+          </head>
+          <body>
+              <h1>Bienvenue !</h1>
+              <p>Ce serveur a été configuré automatiquement avec Ansible.</p>
+              <p>Serveur: {{ inventory_hostname }}</p>
+              <p>Date: {{ ansible_date_time.iso8601 }}</p>
+          </body>
+          </html>
+        dest: "{{ web_root }}/index.html"
+        mode: '0644'
+        owner: "{{ web_user }}"
+        group: "{{ web_group }}"
+    
+    - name: Démarrer et activer Apache
+      systemd:
+        name: apache2
+        state: started
+        enabled: yes
+      when: ansible_os_family == "Debian" and web_server == "apache"
+
+- name: Configuration des serveurs de base de données
+  hosts: dbservers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    db_root_password: "{{ vault_db_root_password | default('RootPassword123!') }}"
+    db_name: "appdb"
+    db_user: "appuser"
+    db_password: "{{ vault_db_password | default('AppPassword456!') }}"
+  
+  tasks:
+    - name: Installer MySQL (Debian/Ubuntu)
+      apt:
+        name:
+          - mysql-server
+          - mysql-client
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: Démarrer et activer MySQL (Debian)
+      systemd:
+        name: mysql
+        state: started
+        enabled: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: Attendre que MySQL soit prêt
+      wait_for:
+        port: 3306
+        delay: 10
+        timeout: 30
+    
+    - name: Configurer le mot de passe root MySQL via debian-sys-maint
+      shell: |
+        DEBIAN_PASS=$(grep -m 1 "^password" /etc/mysql/debian.cnf | cut -d'=' -f2 | tr -d ' ')
+        mysql -u debian-sys-maint -p"$DEBIAN_PASS" <<EOF
+        ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ db_root_password }}';
+        FLUSH PRIVILEGES;
+        EOF
+      when: ansible_os_family == "Debian"
+      become: yes
+      become_user: root
+      changed_when: false
+    
+    - name: Créer la base de données
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+        login_user: root
+        login_password: "{{ db_root_password }}"
+      when: ansible_os_family == "Debian"
+    
+    - name: Créer l'utilisateur de la base de données
+      mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "{{ db_name }}.*:ALL"
+        state: present
+        login_user: root
+        login_password: "{{ db_root_password }}"
+      when: ansible_os_family == "Debian"
+
+- name: Configuration des serveurs applicatifs
+  hosts: appservers
+  become: yes
+  
+  tasks:
+    - name: Installer les dépendances pour les applications
+      package:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+        state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: Créer le répertoire pour les applications
+      file:
+        path: /opt/applications
+        state: directory
+        mode: '0755'
+

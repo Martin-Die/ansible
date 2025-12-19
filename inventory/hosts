@@ -1,0 +1,47 @@
+# ============================================
+# INVENTAIRE ANSIBLE - CONFIGURATION POUR TP
+# ============================================
+#
+# IMPORTANT : Pour un TP, vous avez plusieurs options :
+#   1. LOCALHOST (recommandé pour débuter) - Utilisez votre propre machine
+#   2. MACHINES VIRTUELLES - Si vous avez des VMs (VirtualBox, VMware)
+#   3. CONTENEURS DOCKER - Si vous utilisez Docker
+#   4. SERVEURS CLOUD - Si vous avez des serveurs distants
+#
+# Consultez TP-INVENTORY-GUIDE.md pour plus de détails
+# ============================================
+
+# OPTION 1 : LOCALHOST (Décommentez pour utiliser votre machine)
+# C'est la solution la plus simple pour un TP - pas besoin d'autres serveurs !
+[webservers]
+localhost ansible_connection=local
+
+[dbservers]
+localhost ansible_connection=local
+
+[appservers]
+localhost ansible_connection=local
+
+# OPTION 2 : MACHINES VIRTUELLES (Décommentez et modifiez avec vos IPs)
+# Si vous avez des machines virtuelles, remplacez les adresses IP ci-dessous
+# [webservers]
+# web1 ansible_host=192.168.56.10 ansible_user=ubuntu
+# web2 ansible_host=192.168.56.11 ansible_user=ubuntu
+#
+# [dbservers]
+# db1 ansible_host=192.168.56.12 ansible_user=ubuntu
+#
+# [appservers]
+# app1 ansible_host=192.168.56.13 ansible_user=ubuntu
+
+# Groupe parent combinant plusieurs groupes
+[production:children]
+webservers
+dbservers
+appservers
+
+# Variables de groupe (peuvent être surchargées dans group_vars/)
+[production:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+environment=production
+

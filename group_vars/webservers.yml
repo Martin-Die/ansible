@@ -1,0 +1,21 @@
+---
+# Variables pour le groupe webservers
+# Ces variables définissent l'état désiré des serveurs web
+
+web_server_type: apache  # ou nginx
+http_port: 80
+https_port: 443
+web_root: /var/www/html
+web_user: www-data
+web_group: www-data
+
+# Configuration Apache
+apache_modules:
+  - rewrite
+  - ssl
+  - headers
+
+# Configuration Nginx
+nginx_worker_processes: auto
+nginx_worker_connections: 1024
+

@@ -1,0 +1,16 @@
+---
+# Variables communes pour l'environnement de production
+
+environment: production
+timezone: Europe/Paris
+ntp_servers:
+  - "0.fr.pool.ntp.org"
+  - "1.fr.pool.ntp.org"
+  - "2.fr.pool.ntp.org"
+
+# Configuration système
+sysctl_settings:
+  net.ipv4.ip_forward: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+

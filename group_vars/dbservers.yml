@@ -1,0 +1,12 @@
+---
+# Variables pour le groupe dbservers
+# Note: Les mots de passe sont dans le vault (group_vars/dbservers/vault.yml)
+
+db_name: appdb
+db_user: appuser
+# db_password et db_root_password sont dans le vault
+
+# Configuration MySQL
+mysql_max_connections: 200
+mysql_bind_address: "0.0.0.0"
+

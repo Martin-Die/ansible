@@ -1,0 +1,108 @@
+---
+# Playbook pour configurer les serveurs web
+# Définit l'état désiré : Apache/Nginx installé et configuré
+
+- name: Configuration des serveurs web
+  hosts: webservers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    web_server: "{{ web_server_type | default('apache') }}"
+    http_port: 80
+    https_port: 443
+    web_root: "/var/www/html"
+    web_user: "www-data"
+    web_group: "www-data"
+  
+  tasks:
+    - name: Installer Apache (Debian/Ubuntu)
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian" and web_server == "apache"
+    
+    - name: Installer Apache (RedHat/CentOS)
+      yum:
+        name: httpd
+        state: present
+      when: ansible_os_family == "RedHat" and web_server == "apache"
+    
+    - name: Installer Nginx (Debian/Ubuntu)
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian" and web_server == "nginx"
+    
+    - name: Installer Nginx (RedHat/CentOS)
+      yum:
+        name: nginx
+        state: present
+      when: ansible_os_family == "RedHat" and web_server == "nginx"
+    
+    - name: Créer le répertoire pour les sites web
+      file:
+        path: "{{ web_root }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ web_user }}"
+        group: "{{ web_group }}"
+    
+    - name: Créer une page d'accueil par défaut
+      copy:
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Serveur Web Configuré avec Ansible</title>
+          </head>
+          <body>
+              <h1>Bienvenue !</h1>
+              <p>Ce serveur a été configuré automatiquement avec Ansible.</p>
+              <p>Serveur: {{ inventory_hostname }}</p>
+              <p>Date: {{ ansible_date_time.iso8601 }}</p>
+          </body>
+          </html>
+        dest: "{{ web_root }}/index.html"
+        mode: '0644'
+        owner: "{{ web_user }}"
+        group: "{{ web_group }}"
+    
+    - name: Démarrer et activer Apache
+      systemd:
+        name: apache2
+        state: started
+        enabled: yes
+      when: ansible_os_family == "Debian" and web_server == "apache"
+    
+    - name: Démarrer et activer Apache (RedHat)
+      systemd:
+        name: httpd
+        state: started
+        enabled: yes
+      when: ansible_os_family == "RedHat" and web_server == "apache"
+    
+    - name: Démarrer et activer Nginx
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+      when: web_server == "nginx"
+    
+    - name: Ouvrir le port HTTP dans le firewall
+      firewalld:
+        port: "{{ http_port }}/tcp"
+        permanent: yes
+        state: enabled
+        immediate: yes
+      when: ansible_os_family == "RedHat"
+    
+    - name: Ouvrir le port HTTP dans le firewall (UFW)
+      ufw:
+        rule: allow
+        port: "{{ http_port }}"
+        proto: tcp
+      when: ansible_os_family == "Debian"
+

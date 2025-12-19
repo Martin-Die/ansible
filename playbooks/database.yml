@@ -1,0 +1,127 @@
+---
+# Playbook pour configurer les serveurs de base de données
+# Définit l'état désiré : MySQL/MariaDB installé et configuré
+
+- name: Configuration des serveurs de base de données
+  hosts: dbservers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    db_root_password: "{{ vault_db_root_password | default('RootPassword123!') }}"
+    db_name: "appdb"
+    db_user: "appuser"
+    db_password: "{{ vault_db_password | default('AppPassword456!') }}"
+  
+  tasks:
+    - name: Installer MySQL (Debian/Ubuntu)
+      apt:
+        name:
+          - mysql-server
+          - mysql-client
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: Installer MySQL (RedHat/CentOS)
+      yum:
+        name:
+          - mysql-server
+          - mysql
+        state: present
+      when: ansible_os_family == "RedHat"
+    
+    - name: Démarrer et activer MySQL
+      systemd:
+        name: mysqld
+        state: started
+        enabled: yes
+      when: ansible_os_family == "RedHat"
+    
+    - name: Démarrer et activer MySQL (Debian)
+      systemd:
+        name: mysql
+        state: started
+        enabled: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: Attendre que MySQL soit prêt
+      wait_for:
+        port: 3306
+        delay: 10
+        timeout: 30
+    
+    - name: Configurer le mot de passe root MySQL via debian-sys-maint
+      shell: |
+        DEBIAN_PASS=$(grep -m 1 "^password" /etc/mysql/debian.cnf | cut -d'=' -f2 | tr -d ' ')
+        mysql -u debian-sys-maint -p"$DEBIAN_PASS" <<EOF
+        ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ db_root_password }}';
+        FLUSH PRIVILEGES;
+        EOF
+      when: ansible_os_family == "Debian"
+      become: yes
+      become_user: root
+      changed_when: false
+    
+    - name: Configurer le mot de passe root MySQL (RedHat)
+      mysql_user:
+        name: root
+        password: "{{ db_root_password }}"
+        login_user: root
+        login_password: ""
+        check_implicit_admin: yes
+        host: localhost
+        state: present
+      when: ansible_os_family == "RedHat"
+    
+    - name: Créer la base de données
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+        login_user: root
+        login_password: "{{ db_root_password }}"
+      when: ansible_os_family == "Debian"
+    
+    - name: Créer la base de données (RedHat)
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+        login_user: root
+        login_password: "{{ db_root_password }}"
+      when: ansible_os_family == "RedHat"
+    
+    - name: Créer l'utilisateur de la base de données
+      mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "{{ db_name }}.*:ALL"
+        state: present
+        login_user: root
+        login_password: "{{ db_root_password }}"
+      when: ansible_os_family == "Debian"
+    
+    - name: Créer l'utilisateur de la base de données (RedHat)
+      mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "{{ db_name }}.*:ALL"
+        state: present
+        login_user: root
+        login_password: "{{ db_root_password }}"
+      when: ansible_os_family == "RedHat"
+    
+    - name: Ouvrir le port MySQL dans le firewall
+      firewalld:
+        port: "3306/tcp"
+        permanent: yes
+        state: enabled
+        immediate: yes
+      when: ansible_os_family == "RedHat"
+    
+    - name: Ouvrir le port MySQL dans le firewall (UFW)
+      ufw:
+        rule: allow
+        port: 3306
+        proto: tcp
+      when: ansible_os_family == "Debian"
+

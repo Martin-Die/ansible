@@ -1,0 +1,22 @@
+# Ansible
+*.retry
+.vault_pass
+vault_pass.txt
+*.log
+
+# Fichiers temporaires
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Secrets et fichiers sensibles
+**/vault.yml
+**/*vault*
+secrets/
+*.key
+*.pem
+
+# Facts cache
+/tmp/ansible_facts/
+
